@@ -1,4 +1,4 @@
-import {ascending, min, sum} from "d3-array";
+import {ascending, min, sum, max} from "d3-array";
 import {nest} from "d3-collection";
 import {interpolateNumber} from "d3-interpolate";
 
@@ -184,6 +184,11 @@ export default function() {
     }
 
     function initializeNodeDepth() {
+      var L = max(nodesByBreadth, function(nodes) {
+        return nodes.length;
+      });
+      var maxNodePadding = 2/3 * size[1] / (L - 1);
+      if(nodePadding > maxNodePadding) nodePadding = maxNodePadding;
       var ky = min(nodesByBreadth, function(nodes) {
         return (size[1] - (nodes.length - 1) * nodePadding) / sum(nodes, value);
       });
