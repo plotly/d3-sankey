@@ -1,8 +1,11 @@
-import {ascending, min, sum, max} from "d3-array";
-import {nest} from "d3-collection";
-import {interpolateNumber} from "d3-interpolate";
+// https://github.com/d3/d3-sankey Version 0.5.0. Copyright 2018 Mike Bostock.
+(function (global, factory) {
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('d3-array'), require('d3-collection'), require('d3-interpolate')) :
+	typeof define === 'function' && define.amd ? define(['exports', 'd3-array', 'd3-collection', 'd3-interpolate'], factory) :
+	(factory((global.d3 = global.d3 || {}),global.d3,global.d3,global.d3));
+}(this, (function (exports,d3Array,d3Collection,d3Interpolate) { 'use strict';
 
-export default function() {
+var sankey = function() {
   var sankey = {},
       nodeWidth = 24,
       nodePadding = 8,
@@ -61,7 +64,7 @@ export default function() {
     function link(d) {
       var x0 = d.source.x + d.source.dx,
           x1 = d.target.x,
-          xi = interpolateNumber(x0, x1),
+          xi = d3Interpolate.interpolateNumber(x0, x1),
           x2 = xi(curvature),
           x3 = xi(1 - curvature),
           y0a = d.source.y + d.sy,
@@ -110,8 +113,8 @@ export default function() {
   function computeNodeValues() {
     nodes.forEach(function(node) {
       node.value = Math.max(
-        sum(node.sourceLinks, value),
-        sum(node.targetLinks, value)
+        d3Array.sum(node.sourceLinks, value),
+        d3Array.sum(node.targetLinks, value)
       );
     });
   }
@@ -168,9 +171,9 @@ export default function() {
   }
 
   function computeNodeDepths(iterations) {
-    var nodesByBreadth = nest()
+    var nodesByBreadth = d3Collection.nest()
         .key(function(d) { return d.x; })
-        .sortKeys(ascending)
+        .sortKeys(d3Array.ascending)
         .entries(nodes)
         .map(function(d) { return d.values; });
 
@@ -185,13 +188,13 @@ export default function() {
     }
 
     function initializeNodeDepth() {
-      var L = max(nodesByBreadth, function(nodes) {
+      var L = d3Array.max(nodesByBreadth, function(nodes) {
         return nodes.length;
       });
       var maxNodePadding = maxPaddedSpace * size[1] / (L - 1);
       if(nodePadding > maxNodePadding) nodePadding = maxNodePadding;
-      var ky = min(nodesByBreadth, function(nodes) {
-        return (size[1] - (nodes.length - 1) * nodePadding) / sum(nodes, value);
+      var ky = d3Array.min(nodesByBreadth, function(nodes) {
+        return (size[1] - (nodes.length - 1) * nodePadding) / d3Array.sum(nodes, value);
       });
 
       nodesByBreadth.forEach(function(nodes) {
@@ -210,7 +213,7 @@ export default function() {
       nodesByBreadth.forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.targetLinks.length) {
-            var y = sum(node.targetLinks, weightedSource) / sum(node.targetLinks, value);
+            var y = d3Array.sum(node.targetLinks, weightedSource) / d3Array.sum(node.targetLinks, value);
             node.y += (y - center(node)) * alpha;
           }
         });
@@ -225,7 +228,7 @@ export default function() {
       nodesByBreadth.slice().reverse().forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.sourceLinks.length) {
-            var y = sum(node.sourceLinks, weightedTarget) / sum(node.sourceLinks, value);
+            var y = d3Array.sum(node.sourceLinks, weightedTarget) / d3Array.sum(node.sourceLinks, value);
             node.y += (y - center(node)) * alpha;
           }
         });
@@ -309,4 +312,10 @@ export default function() {
   }
 
   return sankey;
-}
+};
+
+exports.sankey = sankey;
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+})));
