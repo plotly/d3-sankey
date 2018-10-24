@@ -8,7 +8,8 @@ export default function() {
       nodePadding = 8,
       size = [1, 1],
       nodes = [],
-      links = [];
+      links = [],
+      maxPaddedSpace = 2 / 3; // Defined as a fraction of the total available space
 
   sankey.nodeWidth = function(_) {
     if (!arguments.length) return nodeWidth;
@@ -187,7 +188,7 @@ export default function() {
       var L = max(nodesByBreadth, function(nodes) {
         return nodes.length;
       });
-      var maxNodePadding = 2/3 * size[1] / (L - 1);
+      var maxNodePadding = maxPaddedSpace * size[1] / (L - 1);
       if(nodePadding > maxNodePadding) nodePadding = maxNodePadding;
       var ky = min(nodesByBreadth, function(nodes) {
         return (size[1] - (nodes.length - 1) * nodePadding) / sum(nodes, value);
