@@ -1,4 +1,4 @@
-import {ascending, min, sum, max} from "d3-array";
+import {ascending, min, sum} from "d3-array";
 import {nest} from "d3-collection";
 import {interpolateNumber} from "d3-interpolate";
 
@@ -8,8 +8,7 @@ export default function() {
       nodePadding = 8,
       size = [1, 1],
       nodes = [],
-      links = [],
-      maxPaddedSpace = 2 / 3; // Defined as a fraction of the total available space
+      links = [];
 
   sankey.nodeWidth = function(_) {
     if (!arguments.length) return nodeWidth;
@@ -64,19 +63,12 @@ export default function() {
           xi = interpolateNumber(x0, x1),
           x2 = xi(curvature),
           x3 = xi(1 - curvature),
-          y0a = d.source.y + d.sy,
-          y0b = y0a + d.dy,
-          y1a = d.target.y + d.ty,
-          y1b = y1a + d.dy;
-      return "M" + x0 + "," + y0a
-           + "C" + x2 + "," + y0a
-           + " " + x3 + "," + y1a
-           + " " + x1 + "," + y1a
-           + "L" + x1 + "," + y1b
-           + "C" + x3 + "," + y1b
-           + " " + x2 + "," + y0b
-           + " " + x0 + "," + y0b
-           + "Z";
+          y0 = d.source.y + d.sy + d.dy / 2,
+          y1 = d.target.y + d.ty + d.dy / 2;
+      return "M" + x0 + "," + y0
+           + "C" + x2 + "," + y0
+           + " " + x3 + "," + y1
+           + " " + x1 + "," + y1;
     }
 
     link.curvature = function(_) {
@@ -95,12 +87,11 @@ export default function() {
       node.sourceLinks = [];
       node.targetLinks = [];
     });
-    links.forEach(function(link, i) {
+    links.forEach(function(link) {
       var source = link.source,
           target = link.target;
       if (typeof source === "number") source = link.source = nodes[link.source];
       if (typeof target === "number") target = link.target = nodes[link.target];
-      link.originalIndex = i;
       source.sourceLinks.push(link);
       target.targetLinks.push(link);
     });
@@ -185,11 +176,6 @@ export default function() {
     }
 
     function initializeNodeDepth() {
-      var L = max(nodesByBreadth, function(nodes) {
-        return nodes.length;
-      });
-      var maxNodePadding = maxPaddedSpace * size[1] / (L - 1);
-      if(nodePadding > maxNodePadding) nodePadding = maxNodePadding;
       var ky = min(nodesByBreadth, function(nodes) {
         return (size[1] - (nodes.length - 1) * nodePadding) / sum(nodes, value);
       });
@@ -292,11 +278,11 @@ export default function() {
     });
 
     function ascendingSourceDepth(a, b) {
-      return (a.source.y - b.source.y) || (a.originalIndex - b.originalIndex);
+      return a.source.y - b.source.y;
     }
 
     function ascendingTargetDepth(a, b) {
-      return (a.target.y - b.target.y) || (a.originalIndex - b.originalIndex);
+      return a.target.y - b.target.y;
     }
   }
 
