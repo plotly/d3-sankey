@@ -1,168 +1,117 @@
-// https://github.com/d3/d3-sankey Version 0.7.1. Copyright 2019 Mike Bostock.
+// https://github.com/d3/d3-sankey Version 0.5.0. Copyright 2018 Mike Bostock.
 (function (global, factory) {
-	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('d3-array'), require('d3-collection'), require('d3-shape')) :
-	typeof define === 'function' && define.amd ? define(['exports', 'd3-array', 'd3-collection', 'd3-shape'], factory) :
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('d3-array'), require('d3-collection'), require('d3-interpolate')) :
+	typeof define === 'function' && define.amd ? define(['exports', 'd3-array', 'd3-collection', 'd3-interpolate'], factory) :
 	(factory((global.d3 = global.d3 || {}),global.d3,global.d3,global.d3));
-}(this, (function (exports,d3Array,d3Collection,d3Shape) { 'use strict';
-
-function targetDepth(d) {
-  return d.target.depth;
-}
-
-function left(node) {
-  return node.depth;
-}
-
-function right(node, n) {
-  return n - 1 - node.height;
-}
-
-function justify(node, n) {
-  return node.sourceLinks.length ? node.depth : n - 1;
-}
-
-function center(node) {
-  return node.targetLinks.length ? node.depth
-      : node.sourceLinks.length ? d3Array.min(node.sourceLinks, targetDepth) - 1
-      : 0;
-}
-
-function constant(x) {
-  return function() {
-    return x;
-  };
-}
-
-function ascendingSourceBreadth(a, b) {
-  return ascendingBreadth(a.source, b.source) || a.index - b.index;
-}
-
-function ascendingTargetBreadth(a, b) {
-  return ascendingBreadth(a.target, b.target) || a.index - b.index;
-}
-
-function ascendingBreadth(a, b) {
-  return a.y0 - b.y0;
-}
-
-function value(d) {
-  return d.value;
-}
-
-function nodeCenter(node) {
-  return (node.y0 + node.y1) / 2;
-}
-
-function weightedSource(link) {
-  return nodeCenter(link.source) * link.value;
-}
-
-function weightedTarget(link) {
-  return nodeCenter(link.target) * link.value;
-}
-
-function defaultId(d) {
-  return d.index;
-}
-
-function defaultNodes(graph) {
-  return graph.nodes;
-}
-
-function defaultLinks(graph) {
-  return graph.links;
-}
-
-function find(nodeById, id) {
-  var node = nodeById.get(id);
-  if (!node) throw new Error("missing: " + id);
-  return node;
-}
+}(this, (function (exports,d3Array,d3Collection,d3Interpolate) { 'use strict';
 
 var sankey = function() {
-  var x0 = 0, y0 = 0, x1 = 1, y1 = 1, // extent
-      dx = 24, // nodeWidth
-      py = 8, // nodePadding
-      id = defaultId,
-      align = justify,
-      nodes = defaultNodes,
-      links = defaultLinks,
-      iterations = 32,
+  var sankey = {},
+      nodeWidth = 24,
+      nodePadding = 8,
+      size = [1, 1],
+      nodes = [],
+      links = [],
       maxPaddedSpace = 2 / 3; // Defined as a fraction of the total available space
 
-  function sankey() {
-    var graph = {nodes: nodes.apply(null, arguments), links: links.apply(null, arguments)};
-    computeNodeLinks(graph);
-    computeNodeValues(graph);
-    computeNodeDepths(graph);
-    computeNodeBreadths(graph, iterations);
-    computeLinkBreadths(graph);
-    return graph;
-  }
-
-  sankey.update = function(graph) {
-    computeLinkBreadths(graph);
-    return graph;
-  };
-
-  sankey.nodeId = function(_) {
-    return arguments.length ? (id = typeof _ === "function" ? _ : constant(_), sankey) : id;
-  };
-
-  sankey.nodeAlign = function(_) {
-    return arguments.length ? (align = typeof _ === "function" ? _ : constant(_), sankey) : align;
-  };
-
   sankey.nodeWidth = function(_) {
-    return arguments.length ? (dx = +_, sankey) : dx;
+    if (!arguments.length) return nodeWidth;
+    nodeWidth = +_;
+    return sankey;
   };
 
   sankey.nodePadding = function(_) {
-    return arguments.length ? (py = +_, sankey) : py;
+    if (!arguments.length) return nodePadding;
+    nodePadding = +_;
+    return sankey;
   };
 
   sankey.nodes = function(_) {
-    return arguments.length ? (nodes = typeof _ === "function" ? _ : constant(_), sankey) : nodes;
+    if (!arguments.length) return nodes;
+    nodes = _;
+    return sankey;
   };
 
   sankey.links = function(_) {
-    return arguments.length ? (links = typeof _ === "function" ? _ : constant(_), sankey) : links;
+    if (!arguments.length) return links;
+    links = _;
+    return sankey;
   };
 
   sankey.size = function(_) {
-    return arguments.length ? (x0 = y0 = 0, x1 = +_[0], y1 = +_[1], sankey) : [x1 - x0, y1 - y0];
+    if (!arguments.length) return size;
+    size = _;
+    return sankey;
   };
 
-  sankey.extent = function(_) {
-    return arguments.length ? (x0 = +_[0][0], x1 = +_[1][0], y0 = +_[0][1], y1 = +_[1][1], sankey) : [[x0, y0], [x1, y1]];
+  sankey.layout = function(iterations) {
+    computeNodeLinks();
+    computeNodeValues();
+    computeNodeBreadths();
+    computeNodeDepths(iterations);
+    computeLinkDepths();
+    return sankey;
   };
 
-  sankey.iterations = function(_) {
-    return arguments.length ? (iterations = +_, sankey) : iterations;
+  sankey.relayout = function() {
+    computeLinkDepths();
+    return sankey;
+  };
+
+  sankey.link = function() {
+    var curvature = .5;
+
+    function link(d) {
+      var x0 = d.source.x + d.source.dx,
+          x1 = d.target.x,
+          xi = d3Interpolate.interpolateNumber(x0, x1),
+          x2 = xi(curvature),
+          x3 = xi(1 - curvature),
+          y0a = d.source.y + d.sy,
+          y0b = y0a + d.dy,
+          y1a = d.target.y + d.ty,
+          y1b = y1a + d.dy;
+      return "M" + x0 + "," + y0a
+           + "C" + x2 + "," + y0a
+           + " " + x3 + "," + y1a
+           + " " + x1 + "," + y1a
+           + "L" + x1 + "," + y1b
+           + "C" + x3 + "," + y1b
+           + " " + x2 + "," + y0b
+           + " " + x0 + "," + y0b
+           + "Z";
+    }
+
+    link.curvature = function(_) {
+      if (!arguments.length) return curvature;
+      curvature = +_;
+      return link;
+    };
+
+    return link;
   };
 
   // Populate the sourceLinks and targetLinks for each node.
   // Also, if the source and target are not objects, assume they are indices.
-  function computeNodeLinks(graph) {
-    graph.nodes.forEach(function(node, i) {
-      node.index = i;
+  function computeNodeLinks() {
+    nodes.forEach(function(node) {
       node.sourceLinks = [];
       node.targetLinks = [];
     });
-    var nodeById = d3Collection.map(graph.nodes, id);
-    graph.links.forEach(function(link, i) {
-      link.index = i;
-      var source = link.source, target = link.target;
-      if (typeof source !== "object") source = link.source = find(nodeById, source);
-      if (typeof target !== "object") target = link.target = find(nodeById, target);
+    links.forEach(function(link, i) {
+      var source = link.source,
+          target = link.target;
+      if (typeof source === "number") source = link.source = nodes[link.source];
+      if (typeof target === "number") target = link.target = nodes[link.target];
+      link.originalIndex = i;
       source.sourceLinks.push(link);
       target.targetLinks.push(link);
     });
   }
 
   // Compute the value (size) of each node by summing the associated links.
-  function computeNodeValues(graph) {
-    graph.nodes.forEach(function(node) {
+  function computeNodeValues() {
+    nodes.forEach(function(node) {
       node.value = Math.max(
         d3Array.sum(node.sourceLinks, value),
         d3Array.sum(node.targetLinks, value)
@@ -170,174 +119,202 @@ var sankey = function() {
     });
   }
 
-  // Iteratively assign the depth (x-position) for each node.
-  // Nodes are assigned the maximum depth of incoming neighbors plus one;
-  // nodes with no incoming links are assigned depth zero, while
-  // nodes with no outgoing links are assigned the maximum depth.
-  function computeNodeDepths(graph) {
-    var nodes, next, x;
+  // Iteratively assign the breadth (x-position) for each node.
+  // Nodes are assigned the maximum breadth of incoming neighbors plus one;
+  // nodes with no incoming links are assigned breadth zero, while
+  // nodes with no outgoing links are assigned the maximum breadth.
+  function computeNodeBreadths() {
+    var remainingNodes = nodes,
+        nextNodes,
+        x = 0;
 
-    for (nodes = graph.nodes, next = [], x = 0; nodes.length; ++x, nodes = next, next = []) {
-      nodes.forEach(function(node) {
-        node.depth = x;
+    while (remainingNodes.length) {
+      nextNodes = [];
+      remainingNodes.forEach(function(node) {
+        node.x = x;
+        node.dx = nodeWidth;
         node.sourceLinks.forEach(function(link) {
-          if (next.indexOf(link.target) < 0) {
-            next.push(link.target);
+          if (nextNodes.indexOf(link.target) < 0) {
+            nextNodes.push(link.target);
           }
         });
       });
+      remainingNodes = nextNodes;
+      ++x;
     }
 
-    for (nodes = graph.nodes, next = [], x = 0; nodes.length; ++x, nodes = next, next = []) {
-      nodes.forEach(function(node) {
-        node.height = x;
-        node.targetLinks.forEach(function(link) {
-          if (next.indexOf(link.source) < 0) {
-            next.push(link.source);
-          }
-        });
-      });
-    }
+    //
+    moveSinksRight(x);
+    scaleNodeBreadths((size[0] - nodeWidth) / (x - 1));
+  }
 
-    var kx = (x1 - x0 - dx) / (x - 1);
-    graph.nodes.forEach(function(node) {
-      node.x1 = (node.x0 = x0 + Math.max(0, Math.min(x - 1, Math.floor(align.call(null, node, x)))) * kx) + dx;
+  // function moveSourcesRight() {
+  //   nodes.forEach(function(node) {
+  //     if (!node.targetLinks.length) {
+  //       node.x = min(node.sourceLinks, function(d) { return d.target.x; }) - 1;
+  //     }
+  //   });
+  // }
+
+  function moveSinksRight(x) {
+    nodes.forEach(function(node) {
+      if (!node.sourceLinks.length) {
+        node.x = x - 1;
+      }
     });
   }
 
-  function computeNodeBreadths(graph) {
-    var columns = d3Collection.nest()
-        .key(function(d) { return d.x0; })
+  function scaleNodeBreadths(kx) {
+    nodes.forEach(function(node) {
+      node.x *= kx;
+    });
+  }
+
+  function computeNodeDepths(iterations) {
+    var nodesByBreadth = d3Collection.nest()
+        .key(function(d) { return d.x; })
         .sortKeys(d3Array.ascending)
-        .entries(graph.nodes)
+        .entries(nodes)
         .map(function(d) { return d.values; });
 
     //
-    initializeNodeBreadth();
+    initializeNodeDepth();
     resolveCollisions();
-    for (var alpha = 1, n = iterations; n > 0; --n) {
-      relaxRightToLeft(alpha *= 0.99);
+    for (var alpha = 1; iterations > 0; --iterations) {
+      relaxRightToLeft(alpha *= .99);
       resolveCollisions();
       relaxLeftToRight(alpha);
       resolveCollisions();
     }
 
-    function initializeNodeBreadth() {
-      var L = d3Array.max(columns, function(nodes) {
+    function initializeNodeDepth() {
+      var L = d3Array.max(nodesByBreadth, function(nodes) {
         return nodes.length;
       });
-      var maxNodePadding = maxPaddedSpace * (y1 - y0) / (L - 1);
-      if(py > maxNodePadding) py = maxNodePadding;
-      var ky = d3Array.min(columns, function(nodes) {
-        return (y1 - y0 - (nodes.length - 1) * py) / d3Array.sum(nodes, value);
+      var maxNodePadding = maxPaddedSpace * size[1] / (L - 1);
+      if(nodePadding > maxNodePadding) nodePadding = maxNodePadding;
+      var ky = d3Array.min(nodesByBreadth, function(nodes) {
+        return (size[1] - (nodes.length - 1) * nodePadding) / d3Array.sum(nodes, value);
       });
 
-      columns.forEach(function(nodes) {
+      nodesByBreadth.forEach(function(nodes) {
         nodes.forEach(function(node, i) {
-          node.y1 = (node.y0 = i) + node.value * ky;
+          node.y = i;
+          node.dy = node.value * ky;
         });
       });
 
-      graph.links.forEach(function(link) {
-        link.width = link.value * ky;
+      links.forEach(function(link) {
+        link.dy = link.value * ky;
       });
     }
 
     function relaxLeftToRight(alpha) {
-      columns.forEach(function(nodes) {
+      nodesByBreadth.forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.targetLinks.length) {
-            var dy = (d3Array.sum(node.targetLinks, weightedSource) / d3Array.sum(node.targetLinks, value) - nodeCenter(node)) * alpha;
-            node.y0 += dy, node.y1 += dy;
+            var y = d3Array.sum(node.targetLinks, weightedSource) / d3Array.sum(node.targetLinks, value);
+            node.y += (y - center(node)) * alpha;
           }
         });
       });
+
+      function weightedSource(link) {
+        return center(link.source) * link.value;
+      }
     }
 
     function relaxRightToLeft(alpha) {
-      columns.slice().reverse().forEach(function(nodes) {
+      nodesByBreadth.slice().reverse().forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.sourceLinks.length) {
-            var dy = (d3Array.sum(node.sourceLinks, weightedTarget) / d3Array.sum(node.sourceLinks, value) - nodeCenter(node)) * alpha;
-            node.y0 += dy, node.y1 += dy;
+            var y = d3Array.sum(node.sourceLinks, weightedTarget) / d3Array.sum(node.sourceLinks, value);
+            node.y += (y - center(node)) * alpha;
           }
         });
       });
+
+      function weightedTarget(link) {
+        return center(link.target) * link.value;
+      }
     }
 
     function resolveCollisions() {
-      columns.forEach(function(nodes) {
+      nodesByBreadth.forEach(function(nodes) {
         var node,
             dy,
-            y = y0,
+            y0 = 0,
             n = nodes.length,
             i;
 
         // Push any overlapping nodes down.
-        nodes.sort(ascendingBreadth);
+        nodes.sort(ascendingDepth);
         for (i = 0; i < n; ++i) {
           node = nodes[i];
-          dy = y - node.y0;
-          if (dy > 0) node.y0 += dy, node.y1 += dy;
-          y = node.y1 + py;
+          dy = y0 - node.y;
+          if (dy > 0) node.y += dy;
+          y0 = node.y + node.dy + nodePadding;
         }
 
         // If the bottommost node goes outside the bounds, push it back up.
-        dy = y - py - y1;
+        dy = y0 - nodePadding - size[1];
         if (dy > 0) {
-          y = (node.y0 -= dy), node.y1 -= dy;
+          y0 = node.y -= dy;
 
           // Push any overlapping nodes back up.
           for (i = n - 2; i >= 0; --i) {
             node = nodes[i];
-            dy = node.y1 + py - y;
-            if (dy > 0) node.y0 -= dy, node.y1 -= dy;
-            y = node.y0;
+            dy = node.y + node.dy + nodePadding - y0;
+            if (dy > 0) node.y -= dy;
+            y0 = node.y;
           }
         }
       });
     }
+
+    function ascendingDepth(a, b) {
+      return a.y - b.y;
+    }
   }
 
-  function computeLinkBreadths(graph) {
-    graph.nodes.forEach(function(node) {
-      node.sourceLinks.sort(ascendingTargetBreadth);
-      node.targetLinks.sort(ascendingSourceBreadth);
+  function computeLinkDepths() {
+    nodes.forEach(function(node) {
+      node.sourceLinks.sort(ascendingTargetDepth);
+      node.targetLinks.sort(ascendingSourceDepth);
     });
-    graph.nodes.forEach(function(node) {
-      var y0 = node.y0, y1 = y0;
+    nodes.forEach(function(node) {
+      var sy = 0, ty = 0;
       node.sourceLinks.forEach(function(link) {
-        link.y0 = y0 + link.width / 2, y0 += link.width;
+        link.sy = sy;
+        sy += link.dy;
       });
       node.targetLinks.forEach(function(link) {
-        link.y1 = y1 + link.width / 2, y1 += link.width;
+        link.ty = ty;
+        ty += link.dy;
       });
     });
+
+    function ascendingSourceDepth(a, b) {
+      return (a.source.y - b.source.y) || (a.originalIndex - b.originalIndex);
+    }
+
+    function ascendingTargetDepth(a, b) {
+      return (a.target.y - b.target.y) || (a.originalIndex - b.originalIndex);
+    }
+  }
+
+  function center(node) {
+    return node.y + node.dy / 2;
+  }
+
+  function value(link) {
+    return link.value;
   }
 
   return sankey;
 };
 
-function horizontalSource(d) {
-  return [d.source.x1, d.y0];
-}
-
-function horizontalTarget(d) {
-  return [d.target.x0, d.y1];
-}
-
-var sankeyLinkHorizontal = function() {
-  return d3Shape.linkHorizontal()
-      .source(horizontalSource)
-      .target(horizontalTarget);
-};
-
 exports.sankey = sankey;
-exports.sankeyCenter = center;
-exports.sankeyLeft = left;
-exports.sankeyRight = right;
-exports.sankeyJustify = justify;
-exports.sankeyLinkHorizontal = sankeyLinkHorizontal;
 
 Object.defineProperty(exports, '__esModule', { value: true });
 
