@@ -1,4 +1,4 @@
-import {ascending, min, sum} from "d3-array";
+import {ascending, min, max, sum} from "d3-array";
 import {map, nest} from "d3-collection";
 import {justify} from "./align";
 import constant from "./constant";
@@ -57,7 +57,8 @@ export default function() {
       align = justify,
       nodes = defaultNodes,
       links = defaultLinks,
-      iterations = 32;
+      iterations = 32,
+      maxPaddedSpace = 2 / 3; // Defined as a fraction of the total available space
 
   function sankey() {
     var graph = {nodes: nodes.apply(null, arguments), links: links.apply(null, arguments)};
@@ -193,6 +194,11 @@ export default function() {
     }
 
     function initializeNodeBreadth() {
+      var L = max(columns, function(nodes) {
+        return nodes.length;
+      });
+      var maxNodePadding = maxPaddedSpace * (y1 - y0) / (L - 1);
+      if(py > maxNodePadding) py = maxNodePadding;
       var ky = min(columns, function(nodes) {
         return (y1 - y0 - (nodes.length - 1) * py) / sum(nodes, value);
       });
