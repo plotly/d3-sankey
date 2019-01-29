@@ -1,7 +1,37 @@
-import {ascending, min, max, sum} from "d3-array";
-import {map, nest} from "d3-collection";
-import {justify} from "./align";
-import constant from "./constant";
+// https://github.com/d3/d3-sankey Version 0.7.1. Copyright 2019 Mike Bostock.
+(function (global, factory) {
+	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('d3-array'), require('d3-collection'), require('d3-shape')) :
+	typeof define === 'function' && define.amd ? define(['exports', 'd3-array', 'd3-collection', 'd3-shape'], factory) :
+	(factory((global.d3 = global.d3 || {}),global.d3,global.d3,global.d3));
+}(this, (function (exports,d3Array,d3Collection,d3Shape) { 'use strict';
+
+function targetDepth(d) {
+  return d.target.depth;
+}
+
+function left(node) {
+  return node.depth;
+}
+
+function right(node, n) {
+  return n - 1 - node.height;
+}
+
+function justify(node, n) {
+  return node.sourceLinks.length ? node.depth : n - 1;
+}
+
+function center(node) {
+  return node.targetLinks.length ? node.depth
+      : node.sourceLinks.length ? d3Array.min(node.sourceLinks, targetDepth) - 1
+      : 0;
+}
+
+function constant(x) {
+  return function() {
+    return x;
+  };
+}
 
 function ascendingSourceBreadth(a, b) {
   return ascendingBreadth(a.source, b.source) || a.index - b.index;
@@ -49,7 +79,7 @@ function find(nodeById, id) {
   return node;
 }
 
-export default function() {
+var sankey = function() {
   var x0 = 0, y0 = 0, x1 = 1, y1 = 1, // extent
       dx = 24, // nodeWidth
       py = 8, // nodePadding
@@ -119,7 +149,7 @@ export default function() {
       node.sourceLinks = [];
       node.targetLinks = [];
     });
-    var nodeById = map(graph.nodes, id);
+    var nodeById = d3Collection.map(graph.nodes, id);
     graph.links.forEach(function(link, i) {
       link.index = i;
       var source = link.source, target = link.target;
@@ -134,8 +164,8 @@ export default function() {
   function computeNodeValues(graph) {
     graph.nodes.forEach(function(node) {
       node.value = Math.max(
-        sum(node.sourceLinks, value),
-        sum(node.targetLinks, value)
+        d3Array.sum(node.sourceLinks, value),
+        d3Array.sum(node.targetLinks, value)
       );
     });
   }
@@ -176,9 +206,9 @@ export default function() {
   }
 
   function computeNodeBreadths(graph) {
-    var columns = nest()
+    var columns = d3Collection.nest()
         .key(function(d) { return d.x0; })
-        .sortKeys(ascending)
+        .sortKeys(d3Array.ascending)
         .entries(graph.nodes)
         .map(function(d) { return d.values; });
 
@@ -193,13 +223,13 @@ export default function() {
     }
 
     function initializeNodeBreadth() {
-      var L = max(columns, function(nodes) {
+      var L = d3Array.max(columns, function(nodes) {
         return nodes.length;
       });
       var maxNodePadding = maxPaddedSpace * (y1 - y0) / (L - 1);
       if(py > maxNodePadding) py = maxNodePadding;
-      var ky = min(columns, function(nodes) {
-        return (y1 - y0 - (nodes.length - 1) * py) / sum(nodes, value);
+      var ky = d3Array.min(columns, function(nodes) {
+        return (y1 - y0 - (nodes.length - 1) * py) / d3Array.sum(nodes, value);
       });
 
       columns.forEach(function(nodes) {
@@ -217,7 +247,7 @@ export default function() {
       columns.forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.targetLinks.length) {
-            var dy = (sum(node.targetLinks, weightedSource) / sum(node.targetLinks, value) - nodeCenter(node)) * alpha;
+            var dy = (d3Array.sum(node.targetLinks, weightedSource) / d3Array.sum(node.targetLinks, value) - nodeCenter(node)) * alpha;
             node.y0 += dy, node.y1 += dy;
           }
         });
@@ -228,7 +258,7 @@ export default function() {
       columns.slice().reverse().forEach(function(nodes) {
         nodes.forEach(function(node) {
           if (node.sourceLinks.length) {
-            var dy = (sum(node.sourceLinks, weightedTarget) / sum(node.sourceLinks, value) - nodeCenter(node)) * alpha;
+            var dy = (d3Array.sum(node.sourceLinks, weightedTarget) / d3Array.sum(node.sourceLinks, value) - nodeCenter(node)) * alpha;
             node.y0 += dy, node.y1 += dy;
           }
         });
@@ -286,4 +316,29 @@ export default function() {
   }
 
   return sankey;
+};
+
+function horizontalSource(d) {
+  return [d.source.x1, d.y0];
 }
+
+function horizontalTarget(d) {
+  return [d.target.x0, d.y1];
+}
+
+var sankeyLinkHorizontal = function() {
+  return d3Shape.linkHorizontal()
+      .source(horizontalSource)
+      .target(horizontalTarget);
+};
+
+exports.sankey = sankey;
+exports.sankeyCenter = center;
+exports.sankeyLeft = left;
+exports.sankeyRight = right;
+exports.sankeyJustify = justify;
+exports.sankeyLinkHorizontal = sankeyLinkHorizontal;
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+})));

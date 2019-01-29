@@ -23,8 +23,6 @@ var sankey = d3.sankey();
 </script>
 ```
 
-## API Reference
-
 <a href="#sankey" name="sankey">#</a> d3.<b>sankey</b>() [<>](https://github.com/d3/d3-sankey/blob/master/src/sankey.js#L52 "Source")
 
 Constructs a new Sankey generator with the default settings.
