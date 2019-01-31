@@ -1,5 +1,5 @@
 {
-  "name": "d3-sankey",
+  "name": "@plotly/d3-sankey",
   "version": "0.7.1",
   "description": "Visualize flow between nodes in a directed acyclic network.",
   "keywords": [
