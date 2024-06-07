@@ -1,5 +1,12 @@
 # d3-sankey
 
+<div align="center">
+  <a href="https://dash.plotly.com/project-maintenance">
+    <img src="https://dash.plotly.com/assets/images/maintained-by-plotly.png" width="400px" alt="Maintained by Plotly">
+  </a>
+</div>
+
+
 Sankey diagrams visualize the directed flow between nodes in an acyclic network. For example, this diagram shows a possible scenario of UK energy production and consumption in 2050:
 
 [<img alt="Sankey diagram" src="https://raw.githubusercontent.com/d3/d3-sankey/master/img/energy.png" width="960">](https://bl.ocks.org/mbostock/ca9a0bb7ba204d12974bca90acc507c0)
